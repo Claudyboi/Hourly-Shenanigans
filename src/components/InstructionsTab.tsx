@@ -13,10 +13,10 @@ export default function InstructionsTab() {
             This tool was created to make the hourly ECE TPH update process faster and easier for RTAs.
           </p>
           <p className="text-slate-600 mt-4 leading-relaxed">
-            Previously, preparing the hourly TPH update required manually downloading and cleaning Timelogs, Breaklogs, and Zendesk agent comment data for all Flex agents. Since the raw reports include data from multiple companies and customers, the process also required filtering only ECE agents, checking column formats, sorting dates, and manually adjusting incomplete log end times.
+            Previously, preparing the hourly TPH update required manually downloading and cleaning Timelogs, Breaklogs, and Zendesk agent comment data for all Flex agents. Since the raw reports include data from multiple companies and customers, the process also required filtering only ECE agents, dealing with inconsistent CSV formats, sorting dates, and manually adjusting incomplete log end times.
           </p>
           <p className="text-slate-600 mt-4 font-medium">
-            This tool handles most of that work automatically.
+            This tool handles most of that work automatically. It dynamically maps inconsistent column headers into our strict 22-column template, filters out blank logins, and injects EST-formatted timestamps for missing logouts.
           </p>
         </div>
 

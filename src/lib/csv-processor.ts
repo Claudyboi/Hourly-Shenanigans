@@ -76,42 +76,121 @@ export async function processZendesk(file: File, includeHeaders: boolean): Promi
 
 export async function processTimelogs(file: File, includeHeaders: boolean): Promise<ProcessingResult> {
   try {
-    const data = await parseCSV(file);
-    const roundedNow = getRoundedNowString();
-
-    for (const row of data) {
-      const logOutKey = 'Log Out' in row ? 'Log Out' : ('Logout' in row ? 'Logout' : 'End Time');
-      const logoutVal = row[logOutKey];
-      if (!logoutVal || String(logoutVal).trim() === '') {
-        row[logOutKey] = roundedNow;
-      }
+    const rawData = await parseCSV(file);
+    if (!rawData.length) {
+      throw new Error("File is empty or invalid.");
     }
 
-    data.sort((a, b) => {
-      const rawDateA = String(a['Log In'] || a['Start Time'] || a['Date'] || '').trim();
-      const rawDateB = String(b['Log In'] || b['Start Time'] || b['Date'] || '').trim();
+    const targetColumns = [
+      'Employee Number', 'Employee', 'Team', 'Account', 'Date',
+      'Schedule (Start)', 'Schedule (End)', 'Working Hrs', 'Late',
+      'Undertime', 'Absent', 'Lunch', 'Log In', 'Log Out',
+      'Login Hours', 'Status', 'Dispute Note', 'Note',
+      'Modified Time', 'Modified User', 'OT Filed', 'Error Checking'
+    ];
 
-      const dateA = new Date(rawDateA);
-      const dateB = new Date(rawDateB);
+    const aliasMap: Record<string, string> = {
+      'employee number': 'Employee Number', 'emp no': 'Employee Number', 'id': 'Employee Number',
+      'employee': 'Employee', 'name': 'Employee', 'agent name': 'Employee', 'employee name': 'Employee',
+      'team': 'Team', 'department': 'Team',
+      'account': 'Account', 'client': 'Account',
+      'date': 'Date', 'log date': 'Date',
+      'schedule (start)': 'Schedule (Start)', 'shift start': 'Schedule (Start)',
+      'schedule (end)': 'Schedule (End)', 'shift end': 'Schedule (End)',
+      'working hrs': 'Working Hrs', 'working hours': 'Working Hrs', 'hours': 'Working Hrs',
+      'late': 'Late',
+      'undertime': 'Undertime',
+      'absent': 'Absent',
+      'lunch': 'Lunch', 'break': 'Lunch',
+      'log in': 'Log In', 'login': 'Log In', 'start time': 'Log In',
+      'log out': 'Log Out', 'logout': 'Log Out', 'end time': 'Log Out',
+      'login hours': 'Login Hours',
+      'status': 'Status',
+      'dispute note': 'Dispute Note',
+      'note': 'Note', 'notes': 'Note',
+      'modified time': 'Modified Time',
+      'modified user': 'Modified User',
+      'ot filed': 'OT Filed',
+      'error checking': 'Error Checking'
+    };
+
+    // Build header mapping from the first row
+    const rawHeaders = Object.keys(rawData[0]);
+    const headerMapping: Record<string, string> = {};
+    rawHeaders.forEach(h => {
+      const cleanH = h.toLowerCase().trim();
+      if (aliasMap[cleanH]) {
+        headerMapping[h] = aliasMap[cleanH];
+      }
+    });
+
+    // Generate EST fallback time (rounded down to nearest hour)
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      hourCycle: 'h23'
+    });
+    
+    const parts = formatter.formatToParts(new Date());
+    const p: Record<string, string> = {};
+    parts.forEach(part => p[part.type] = part.value);
+    // Format: DD MMM YYYY HH:00:00 (e.g. 03 Sep 2026 14:00:00)
+    const estFallbackTime = `${p.day} ${p.month} ${p.year} ${p.hour}:00:00`;
+
+    const processedData: Record<string, any>[] = [];
+
+    for (const row of rawData) {
+      const mappedRow: Record<string, any> = {};
       
-      const dayA = isNaN(dateA.getTime()) ? rawDateA : `${dateA.getFullYear()}-${String(dateA.getMonth()+1).padStart(2, '0')}-${String(dateA.getDate()).padStart(2, '0')}`;
-      const dayB = isNaN(dateB.getTime()) ? rawDateB : `${dateB.getFullYear()}-${String(dateB.getMonth()+1).padStart(2, '0')}-${String(dateB.getDate()).padStart(2, '0')}`;
+      // Initialize with empty strings for all target columns
+      targetColumns.forEach(tc => mappedRow[tc] = "");
 
-      if (dayA !== dayB) {
-        return dayA.localeCompare(dayB);
+      // Map values
+      Object.keys(row).forEach(rawKey => {
+        const targetKey = headerMapping[rawKey];
+        if (targetKey) {
+          mappedRow[targetKey] = row[rawKey] === null || row[rawKey] === undefined ? "" : String(row[rawKey]).trim();
+        }
+      });
+
+      // Mandatory filtering: Skip if Log In is empty
+      if (!mappedRow['Log In']) {
+        continue;
+      }
+
+      // EST Time Injection for missing Log Out
+      if (!mappedRow['Log Out']) {
+        mappedRow['Log Out'] = estFallbackTime;
+      }
+
+      processedData.push(mappedRow);
+    }
+
+    // Sort: Primary by Date, Secondary by Employee
+    processedData.sort((a, b) => {
+      const dateA = new Date(a['Date'] || 0).getTime();
+      const dateB = new Date(b['Date'] || 0).getTime();
+      
+      if (dateA !== dateB) {
+        return dateA - dateB;
       }
       
-      const nameA = String(a['Name'] || a['Employee Name'] || a['Employee'] || a['Agent Name'] || '').trim();
-      const nameB = String(b['Name'] || b['Employee Name'] || b['Employee'] || b['Agent Name'] || '').trim();
-      return nameA.localeCompare(nameB);
+      const empA = (a['Employee'] || "").toLowerCase();
+      const empB = (b['Employee'] || "").toLowerCase();
+      return empA.localeCompare(empB);
     });
 
-    const tsvString = Papa.unparse(data, {
+    // Export as TSV enforcing target columns
+    const tsvString = Papa.unparse(processedData, {
       delimiter: '\t',
-      header: includeHeaders
+      header: includeHeaders,
+      columns: targetColumns
     });
 
-    return { success: true, rowCount: data.length, tsvData: tsvString };
+    return { success: true, rowCount: processedData.length, tsvData: tsvString };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
