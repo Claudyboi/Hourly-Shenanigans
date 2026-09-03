@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Sanitizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f8fafc; }
+        .hidden { display: none !important; }
+        .log-area::-webkit-scrollbar { width: 6px; }
+        .log-area::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col items-center p-4 sm:p-8">
+
+    <div class="max-w-7xl mx-auto w-full space-y-6">
+        
+        <!-- Header -->
+        <div class="bg-slate-900 text-white rounded-xl p-6 shadow-sm">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                Data Sanitizer (3-in-1 Tool)
+            </h1>
+            <p class="text-slate-400 text-sm mt-1">Clean and prepare Zendesk, Timelogs, and Breaklogs independently for your Master Google Sheet.</p>
+        </div>
+
+        <div class="flex items-center gap-2 mb-4">
+            <label class="flex items-center gap-2 text-sm font-bold text-slate-600 cursor-pointer">
+                <input type="checkbox" id="includeHeaders" checked class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600">
+                Include Headers in TSV Outputs
+            </label>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            
+            <!-- 1. Zendesk Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden">
+                <div class="bg-slate-50 p-4 border-b border-slate-200">
+                    <h2 class="font-bold text-lg text-slate-800">1. Zendesk TPH</h2>
+                    <p class="text-xs text-slate-500 mt-1">Filters out non-Flex agents, matches ZD Names, and extracts exactly the requested columns.</p>
+                </div>
+                <div class="p-4 flex-1 flex flex-col gap-4">
+                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center bg-slate-50 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors" onclick="document.getElementById('fileZd').click()">
+                        <input type="file" id="fileZd" accept=".csv" class="hidden" />
+                        <svg class="w-8 h-8 text-slate-400 mb-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4-4 4 4"/></svg>
+                        <span class="text-sm font-bold text-slate-700">Choose CSV File</span>
+                        <span class="text-xs text-slate-500 mt-1 truncate max-w-[200px]" id="nameZd">No file selected</span>
+                    </div>
+                    <button id="processZd" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Process File</button>
+                    <div id="logZd" class="log-area bg-slate-900 rounded-lg p-3 h-24 overflow-y-auto font-mono text-[11px] hidden whitespace-pre-wrap"></div>
+                    
+                    <div id="outContZd" class="flex flex-col gap-2 flex-1 mt-2 hidden">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Output TSV</span>
+                            <button onclick="copyOut('outZd', 'copyZd')" id="copyZd" class="text-xs flex items-center gap-1 font-bold px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors">Copy</button>
+                        </div>
+                        <textarea id="outZd" class="w-full h-48 p-3 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[10px] resize-none whitespace-pre focus:outline-none focus:ring-2 focus:ring-indigo-500/20" readonly></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Timelogs Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden">
+                <div class="bg-slate-50 p-4 border-b border-slate-200">
+                    <h2 class="font-bold text-lg text-slate-800">2. Timelogs</h2>
+                    <p class="text-xs text-slate-500 mt-1">Fills missing 'Log Out' times with the current system time (rounded down).</p>
+                </div>
+                <div class="p-4 flex-1 flex flex-col gap-4">
+                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center bg-slate-50 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors" onclick="document.getElementById('fileTime').click()">
+                        <input type="file" id="fileTime" accept=".csv" class="hidden" />
+                        <svg class="w-8 h-8 text-slate-400 mb-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4-4 4 4"/></svg>
+                        <span class="text-sm font-bold text-slate-700">Choose CSV File</span>
+                        <span class="text-xs text-slate-500 mt-1 truncate max-w-[200px]" id="nameTime">No file selected</span>
+                    </div>
+                    <button id="processTime" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Process File</button>
+                    <div id="logTime" class="log-area bg-slate-900 rounded-lg p-3 h-24 overflow-y-auto font-mono text-[11px] hidden whitespace-pre-wrap"></div>
+                    
+                    <div id="outContTime" class="flex flex-col gap-2 flex-1 mt-2 hidden">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Output TSV</span>
+                            <button onclick="copyOut('outTime', 'copyTime')" id="copyTime" class="text-xs flex items-center gap-1 font-bold px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors">Copy</button>
+                        </div>
+                        <textarea id="outTime" class="w-full h-48 p-3 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[10px] resize-none whitespace-pre focus:outline-none focus:ring-2 focus:ring-indigo-500/20" readonly></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Breaklogs Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden">
+                <div class="bg-slate-50 p-4 border-b border-slate-200">
+                    <h2 class="font-bold text-lg text-slate-800">3. Breaklogs</h2>
+                    <p class="text-xs text-slate-500 mt-1">Fills missing 'End' times with the current system time (rounded down).</p>
+                </div>
+                <div class="p-4 flex-1 flex flex-col gap-4">
+                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center bg-slate-50 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors" onclick="document.getElementById('fileBreak').click()">
+                        <input type="file" id="fileBreak" accept=".csv" class="hidden" />
+                        <svg class="w-8 h-8 text-slate-400 mb-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4-4 4 4"/></svg>
+                        <span class="text-sm font-bold text-slate-700">Choose CSV File</span>
+                        <span class="text-xs text-slate-500 mt-1 truncate max-w-[200px]" id="nameBreak">No file selected</span>
+                    </div>
+                    <button id="processBreak" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Process File</button>
+                    <div id="logBreak" class="log-area bg-slate-900 rounded-lg p-3 h-24 overflow-y-auto font-mono text-[11px] hidden whitespace-pre-wrap"></div>
+                    
+                    <div id="outContBreak" class="flex flex-col gap-2 flex-1 mt-2 hidden">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Output TSV</span>
+                            <button onclick="copyOut('outBreak', 'copyBreak')" id="copyBreak" class="text-xs flex items-center gap-1 font-bold px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors">Copy</button>
+                        </div>
+                        <textarea id="outBreak" class="w-full h-48 p-3 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[10px] resize-none whitespace-pre focus:outline-none focus:ring-2 focus:ring-indigo-500/20" readonly></textarea>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const embeddedRoster = ${rosterObjString};
+        
+        const ui = {
+            incHeaders: document.getElementById('includeHeaders'),
+            
+            zdFile: document.getElementById('fileZd'),
+            zdName: document.getElementById('nameZd'),
+            zdBtn: document.getElementById('processZd'),
+            zdLog: document.getElementById('logZd'),
+            zdCont: document.getElementById('outContZd'),
+            zdOut: document.getElementById('outZd'),
+
+            tmFile: document.getElementById('fileTime'),
+            tmName: document.getElementById('nameTime'),
+            tmBtn: document.getElementById('processTime'),
+            tmLog: document.getElementById('logTime'),
+            tmCont: document.getElementById('outContTime'),
+            tmOut: document.getElementById('outTime'),
+
+            brFile: document.getElementById('fileBreak'),
+            brName: document.getElementById('nameBreak'),
+            brBtn: document.getElementById('processBreak'),
+            brLog: document.getElementById('logBreak'),
+            brCont: document.getElementById('outContBreak'),
+            brOut: document.getElementById('outBreak')
+        };
+
+        // File Selection listeners
+        ui.zdFile.addEventListener('change', e => { if(e.target.files.length) ui.zdName.textContent = e.target.files[0].name; });
+        ui.tmFile.addEventListener('change', e => { if(e.target.files.length) ui.tmName.textContent = e.target.files[0].name; });
+        ui.brFile.addEventListener('change', e => { if(e.target.files.length) ui.brName.textContent = e.target.files[0].name; });
+
+        function log(el, msg, type = 'INFO') {
+            el.classList.remove('hidden');
+            const colors = { INFO: 'text-blue-400', OK: 'text-green-400', ERROR: 'text-red-400' };
+            const div = document.createElement('div');
+            div.className = 'mb-1';
+            div.innerHTML = `<span class="${colors[type] || 'text-slate-300'}">[${type}]</span> <span class="text-slate-300">${msg}</span>`;
+            el.appendChild(div);
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function copyOut(textId, btnId) {
+            const ta = document.getElementById(textId);
+            const btn = document.getElementById(btnId);
+            ta.select();
+            document.execCommand('copy');
+            const orig = btn.innerText;
+            btn.innerText = 'Copied!';
+            setTimeout(() => btn.innerText = orig, 2000);
+        }
+
+        function parseCSV(file) {
+            return new Promise((resolve, reject) => {
+                Papa.parse(file, {
+                    header: true, skipEmptyLines: true,
+                    complete: r => {
+                        if (r.errors.length && !r.data.length) reject(new Error(r.errors[0].message));
+                        else resolve(r.data);
+                    },
+                    error: err => reject(err)
+                });
+            });
+        }
+
+        function getRoundedNowString() {
+            const now = new Date();
+            const day = String(now.getDate()).padStart(2, '0');
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const month = months[now.getMonth()];
+            const year = now.getFullYear();
+            const hours = String(now.getHours()).padStart(2, '0');
+            return `${day} ${month} ${year} ${hours}:00:00`;
+        }
+
+        // Zendesk Process
+        ui.zdBtn.addEventListener('click', async () => {
+            const file = ui.zdFile.files[0];
+            if(!file) { log(ui.zdLog, 'No file selected.', 'ERROR'); return; }
+            ui.zdLog.innerHTML = ''; ui.zdBtn.disabled = true; ui.zdCont.classList.add('hidden');
+            log(ui.zdLog, `Processing ${file.name}...`, 'INFO');
+            try {
+                const data = await parseCSV(file);
+                const emailToName = new Map(Object.entries(embeddedRoster));
+                const processed = [];
+                for(const row of data) {
+                    const rawEmail = String(row['Updater email'] || '').toLowerCase().trim();
+                    if (rawEmail.includes('.e@getflex')) {
+                        const mappedName = emailToName.get(rawEmail) || rawEmail;
+                        processed.push({
+                            'Updater name': mappedName,
+                            'Update - Date': row['Update - Date'] || '',
+                            'Comments': row['Comments'] || '',
+                            'Internal comments': row['Internal comments'] || '',
+                            'Public comments': row['Public comments'] || '',
+                            'Tickets solved': row['Tickets solved'] || '',
+                            'Agent comments': row['Agent comments'] || ''
+                        });
+                    }
+                }
+                processed.sort((a,b) => String(a['Updater name']).localeCompare(String(b['Updater name'])));
+                const tsv = Papa.unparse(processed, { 
+                    delimiter: '\t', 
+                    header: ui.incHeaders.checked,
+                    columns: ['Updater name', 'Update - Date', 'Comments', 'Internal comments', 'Public comments', 'Tickets solved', 'Agent comments'] 
+                });
+                ui.zdOut.value = tsv;
+                ui.zdCont.classList.remove('hidden');
+                log(ui.zdLog, `Success! Generated ${processed.length} rows.`, 'OK');
+            } catch(e) { log(ui.zdLog, e.message, 'ERROR'); }
+            ui.zdBtn.disabled = false;
+        });
+
+        // Timelogs Process
+        ui.tmBtn.addEventListener('click', async () => {
+            const file = ui.tmFile.files[0];
+            if(!file) { log(ui.tmLog, 'No file selected.', 'ERROR'); return; }
+            ui.tmLog.innerHTML = ''; ui.tmBtn.disabled = true; ui.tmCont.classList.add('hidden');
+            log(ui.tmLog, `Processing ${file.name}...`, 'INFO');
+            try {
+                const data = await parseCSV(file);
+                const roundedNow = getRoundedNowString();
+                for(const row of data) {
+                    const logOutKey = 'Log Out' in row ? 'Log Out' : ('Logout' in row ? 'Logout' : 'End Time');
+                    if(!row[logOutKey] || String(row[logOutKey]).trim() === '') row[logOutKey] = roundedNow;
+                }
+                data.sort((a,b) => {
+                    const rawDateA = String(a['Log In'] || a['Start Time'] || a['Date'] || '').trim();
+                    const rawDateB = String(b['Log In'] || b['Start Time'] || b['Date'] || '').trim();
+
+                    const dateA = new Date(rawDateA);
+                    const dateB = new Date(rawDateB);
+                    
+                    const dayA = isNaN(dateA.getTime()) ? rawDateA : `${dateA.getFullYear()}-${String(dateA.getMonth()+1).padStart(2, '0')}-${String(dateA.getDate()).padStart(2, '0')}`;
+                    const dayB = isNaN(dateB.getTime()) ? rawDateB : `${dateB.getFullYear()}-${String(dateB.getMonth()+1).padStart(2, '0')}-${String(dateB.getDate()).padStart(2, '0')}`;
+
+                    if (dayA !== dayB) {
+                        return dayA.localeCompare(dayB);
+                    }
+                    
+                    const nameA = String(a['Name'] || a['Employee Name'] || a['Employee'] || a['Agent Name'] || '').trim();
+                    const nameB = String(b['Name'] || b['Employee Name'] || b['Employee'] || b['Agent Name'] || '').trim();
+                    return nameA.localeCompare(nameB);
+                });
+                const tsv = Papa.unparse(data, { delimiter: '\t', header: ui.incHeaders.checked });
+                ui.tmOut.value = tsv;
+                ui.tmCont.classList.remove('hidden');
+                log(ui.tmLog, `Success! Generated ${data.length} rows.`, 'OK');
+            } catch(e) { log(ui.tmLog, e.message, 'ERROR'); }
+            ui.tmBtn.disabled = false;
+        });
+
+        // Breaklogs Process
+        ui.brBtn.addEventListener('click', async () => {
+            const file = ui.brFile.files[0];
+            if(!file) { log(ui.brLog, 'No file selected.', 'ERROR'); return; }
+            ui.brLog.innerHTML = ''; ui.brBtn.disabled = true; ui.brCont.classList.add('hidden');
+            log(ui.brLog, `Processing ${file.name}...`, 'INFO');
+            try {
+                const data = await parseCSV(file);
+                const roundedNow = getRoundedNowString();
+                for(const row of data) {
+                    if(!row['End'] || String(row['End']).trim() === '') row['End'] = roundedNow;
+                }
+                data.sort((a,b) => {
+                    const rawDateA = String(a['Start'] || a['Date'] || '').trim();
+                    const rawDateB = String(b['Start'] || b['Date'] || '').trim();
+
+                    const dateA = new Date(rawDateA);
+                    const dateB = new Date(rawDateB);
+                    
+                    const dayA = isNaN(dateA.getTime()) ? rawDateA : `${dateA.getFullYear()}-${String(dateA.getMonth()+1).padStart(2, '0')}-${String(dateA.getDate()).padStart(2, '0')}`;
+                    const dayB = isNaN(dateB.getTime()) ? rawDateB : `${dateB.getFullYear()}-${String(dateB.getMonth()+1).padStart(2, '0')}-${String(dateB.getDate()).padStart(2, '0')}`;
+
+                    if (dayA !== dayB) {
+                        return dayA.localeCompare(dayB);
+                    }
+                    
+                    const nameA = String(a['Name'] || a['Employee Name'] || a['Employee'] || a['Agent Name'] || '').trim();
+                    const nameB = String(b['Name'] || b['Employee Name'] || b['Employee'] || b['Agent Name'] || '').trim();
+                    return nameA.localeCompare(nameB);
+                });
+                const tsv = Papa.unparse(data, { delimiter: '\t', header: ui.incHeaders.checked });
+                ui.brOut.value = tsv;
+                ui.brCont.classList.remove('hidden');
+                log(ui.brLog, `Success! Generated ${data.length} rows.`, 'OK');
+            } catch(e) { log(ui.brLog, e.message, 'ERROR'); }
+            ui.brBtn.disabled = false;
+        });
+    </script>
+</body>
+</html>
