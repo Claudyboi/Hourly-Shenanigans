@@ -60,7 +60,16 @@ export async function processZendesk(file: File, includeHeaders: boolean): Promi
       }
     }
 
-    processedRows.sort((a, b) => String(a['Updater name']).localeCompare(String(b['Updater name'])));
+    processedRows.sort((a, b) => {
+      const dateA = new Date(a['Update - Date'] || 0).getTime();
+      const dateB = new Date(b['Update - Date'] || 0).getTime();
+      
+      if (dateA !== dateB) {
+        return dateA - dateB;
+      }
+      
+      return String(a['Updater name']).localeCompare(String(b['Updater name']));
+    });
 
     const tsvString = Papa.unparse(processedRows, {
       delimiter: '\t',
@@ -89,40 +98,47 @@ export async function processTimelogs(file: File, includeHeaders: boolean): Prom
       'Modified Time', 'Modified User', 'OT Filed', 'Error Checking'
     ];
 
-    const aliasMap: Record<string, string> = {
-      'employee number': 'Employee Number', 'emp no': 'Employee Number', 'id': 'Employee Number',
-      'employee': 'Employee', 'name': 'Employee', 'agent name': 'Employee', 'employee name': 'Employee',
-      'team': 'Team', 'department': 'Team',
-      'account': 'Account', 'client': 'Account',
-      'date': 'Date', 'log date': 'Date',
-      'schedule (start)': 'Schedule (Start)', 'shift start': 'Schedule (Start)',
-      'schedule (end)': 'Schedule (End)', 'shift end': 'Schedule (End)',
-      'working hrs': 'Working Hrs', 'working hours': 'Working Hrs', 'hours': 'Working Hrs',
-      'late': 'Late',
-      'undertime': 'Undertime',
-      'absent': 'Absent',
-      'lunch': 'Lunch', 'break': 'Lunch',
-      'log in': 'Log In', 'login': 'Log In', 'start time': 'Log In',
-      'log out': 'Log Out', 'logout': 'Log Out', 'end time': 'Log Out',
-      'login hours': 'Login Hours',
-      'status': 'Status',
-      'dispute note': 'Dispute Note',
-      'note': 'Note', 'notes': 'Note',
-      'modified time': 'Modified Time',
-      'modified user': 'Modified User',
-      'ot filed': 'OT Filed',
-      'error checking': 'Error Checking'
+    // Configuration dictionary of header aliases in order of priority
+    const priorityAliases: Record<string, string[]> = {
+      'Employee Number': ['employee number', 'emp id', 'emp no'],
+      'Employee': ['employee', 'name', 'agent name', 'employee name'],
+      'Team': ['team', 'department'],
+      'Account': ['account', 'client'],
+      'Date': ['date', 'log date'],
+      'Schedule (Start)': ['schedule (start)', 'shift start'],
+      'Schedule (End)': ['schedule (end)', 'shift end'],
+      'Working Hrs': ['working hrs', 'working hours', 'hours'],
+      'Late': ['late'],
+      'Undertime': ['undertime'],
+      'Absent': ['absent'],
+      'Lunch': ['lunch', 'break'],
+      'Log In': ['log in', 'login', 'start time'],
+      'Log Out': ['log out', 'logout', 'end time'],
+      'Login Hours': ['login hours'],
+      'Status': ['status'],
+      'Dispute Note': ['dispute note'],
+      'Note': ['note', 'notes'],
+      'Modified Time': ['modified time'],
+      'Modified User': ['modified user'],
+      'OT Filed': ['ot filed'],
+      'Error Checking': ['error checking']
     };
 
     // Build header mapping from the first row
     const rawHeaders = Object.keys(rawData[0]);
     const headerMapping: Record<string, string> = {};
-    rawHeaders.forEach(h => {
-      const cleanH = h.toLowerCase().trim();
-      if (aliasMap[cleanH]) {
-        headerMapping[h] = aliasMap[cleanH];
+    
+    // For each target column, find the first matching alias in the raw headers
+    for (const targetKey of targetColumns) {
+      const aliases = priorityAliases[targetKey] || [];
+      for (const alias of aliases) {
+        const matchedHeader = rawHeaders.find(h => h.toLowerCase().trim() === alias);
+        if (matchedHeader) {
+          headerMapping[matchedHeader] = targetKey;
+          break; // Stop looking once we found the highest priority match
+        }
       }
-    });
+    }
 
     // Generate EST fallback time (rounded down to nearest hour)
     const formatter = new Intl.DateTimeFormat('en-US', {
@@ -209,21 +225,15 @@ export async function processBreaklogs(file: File, includeHeaders: boolean): Pro
     }
 
     data.sort((a, b) => {
-      const rawDateA = String(a['Start'] || a['Date'] || '').trim();
-      const rawDateB = String(b['Start'] || b['Date'] || '').trim();
-
-      const dateA = new Date(rawDateA);
-      const dateB = new Date(rawDateB);
+      const dateA = new Date(a['Start'] || a['Date'] || 0).getTime();
+      const dateB = new Date(b['Start'] || b['Date'] || 0).getTime();
       
-      const dayA = isNaN(dateA.getTime()) ? rawDateA : `${dateA.getFullYear()}-${String(dateA.getMonth()+1).padStart(2, '0')}-${String(dateA.getDate()).padStart(2, '0')}`;
-      const dayB = isNaN(dateB.getTime()) ? rawDateB : `${dateB.getFullYear()}-${String(dateB.getMonth()+1).padStart(2, '0')}-${String(dateB.getDate()).padStart(2, '0')}`;
-
-      if (dayA !== dayB) {
-        return dayA.localeCompare(dayB);
+      if (dateA !== dateB && !isNaN(dateA) && !isNaN(dateB)) {
+        return dateA - dateB;
       }
       
-      const nameA = String(a['Name'] || a['Employee Name'] || a['Employee'] || a['Agent Name'] || '').trim();
-      const nameB = String(b['Name'] || b['Employee Name'] || b['Employee'] || b['Agent Name'] || '').trim();
+      const nameA = String(a['Name'] || a['Employee Name'] || a['Employee'] || a['Agent Name'] || '').toLowerCase();
+      const nameB = String(b['Name'] || b['Employee Name'] || b['Employee'] || b['Agent Name'] || '').toLowerCase();
       return nameA.localeCompare(nameB);
     });
 
