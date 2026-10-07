@@ -59,10 +59,9 @@ export default function InstructionsTab() {
             <p>Download the Timelog and Breaklog reports for the date or date range you need.</p>
             <p>Upload them to the web app. The tool will automatically:</p>
             <ul className="list-disc pl-5 space-y-1.5 text-slate-600">
-              <li>sort the records by date</li>
-              <li>standardize the output</li>
-              <li>handle incomplete logs</li>
-              <li>use the latest completed hour as the temporary end time for logs that do not yet have an end time</li>
+              <li>sort the records chronologically by date, then alphabetically by employee name</li>
+              <li>standardize the output and filter out blank login/start rows</li>
+              <li>by default, use the latest completed EST hour as the temporary end time for logs without a Logout/End time (you can uncheck <strong>Auto-fill missing Logout/End times</strong> at the top if you prefer to keep missing Logout/End cells blank)</li>
             </ul>
             
             <div className="mt-5 bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 text-amber-900 shadow-sm">
@@ -75,10 +74,34 @@ export default function InstructionsTab() {
           </div>
         </section>
 
-        {/* Hourly Interval Tool */}
+        {/* Hourly Comments */}
         <section>
           <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
             <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
+            Hourly Comments (Columns B to G for Google Sheets)
+          </h3>
+          <div className="bg-slate-50 rounded-lg p-5 border border-slate-100 space-y-3 text-sm text-slate-700">
+            <p>
+              Upload raw comment logs containing <code>Updater email</code>, <code>Update - Date</code>, <code>Update - Hour</code>, <code>Internal comments</code>, and <code>Public comments</code>.
+            </p>
+            <p>The tool automatically:</p>
+            <ul className="list-disc pl-5 space-y-1.5 text-slate-600">
+              <li><strong>Filters agents:</strong> Strictly includes only agent emails containing <code>.e@getflex.com</code> to isolate company employees</li>
+              <li>Groups and aggregates records by Date, Hour, and Agent Email</li>
+              <li>Calculates <strong>Total Comments</strong> (Public comments + Internal comments)</li>
+              <li>Maps exactly 6 columns in sequence matching Google Sheets: Col B (Email), Col C (Date), Col D (Blank for VLOOKUP formula), Col E (Hour 0–23), Col F (Total Comments), Col G (Public comments)</li>
+              <li>Sorts 1st by Date ascending, 2nd by Agent Email alphabetically, and 3rd by Hour ascending</li>
+            </ul>
+            <p className="mt-2 text-xs text-slate-500">
+              Use the default <strong>Data Only</strong> mode (unchecked Headers) to paste directly starting at cell <strong>B2</strong> in your sheet without overwriting column headers.
+            </p>
+          </div>
+        </section>
+
+        {/* Hourly Interval Tool */}
+        <section>
+          <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
             Hourly Interval Tool
           </h3>
           <div className="bg-slate-50 rounded-lg p-5 border border-slate-100 text-sm text-slate-700 space-y-2">
